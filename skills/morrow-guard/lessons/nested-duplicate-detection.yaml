@@ -1,0 +1,55 @@
+# 公开版本已脱敏：项目和快照标识为占位值，原始坏样本未包含在仓库中。
+id: nested-duplicate-detection
+slug: nested-duplicate-detection
+created: 2026-07-29
+updated: 2026-07-29
+status: active
+
+title: 检测嵌套自引用目录（a/a/file）
+category: verification-design
+severity: P0
+
+source:
+  project: example-project
+  task: 示例工具迁移
+  failure_date: 2026-07-28
+  known_bad_fixture:
+    ref: example/known-bad-snapshot
+    commit: REDACTED_COMMIT
+    repo: /path/to/example-project
+
+problem:
+  phenomena:
+    - 出现 19 个嵌套自引用目录（api-defect-extractor/api-defect-extractor/SKILL.md）
+    - rsync 拷贝时层级错误导致
+    - 单纯"文件存在性检查"发现不了这个问题
+  root_cause: 验证只查文件存在，不查路径形状
+  phase: 4
+
+solution:
+  assertion_type: path-shape
+  strength: L3
+  implementation:
+    script: check-no-nested-duplicates.sh
+    invocation: |
+      find skills/ -type f -name 'SKILL.md' | \
+        awk -F/ '{if($2==$3) {print "嵌套: " $0; exit 1}}'
+  verified_with_fixture: true
+  verification_date: 2026-07-29
+
+reusable:
+  pattern: 路径形状检查
+  applies_to:
+    - 任何涉及目录批量复制/重命名的操作
+    - rsync / cp -r 使用不当
+    - 检测 a/a/、b/b/ 等重复路径段
+  reference: references/assertion-patterns.md#3-路径形状
+
+evolution:
+  hits: 1
+  last_hit: 2026-07-29
+  false_positives: 0
+  false_negatives: 0
+
+related:
+  - routing-closure-bidirectional

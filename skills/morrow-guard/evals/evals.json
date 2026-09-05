@@ -1,0 +1,88 @@
+{
+  "skill_name": "morrow-guard",
+  "baseline": "no-skill",
+  "notes": "prompt 中不出现 morrow-guard / 环节5 / L3 等内部术语——测的是能否自行识别该介入",
+  "evals": [
+    {
+      "id": 0,
+      "name": "selfcheck-count-equal-but-content-differs",
+      "capability": "环节5 反驳性验证",
+      "weight": 3,
+      "prompt": "我把 78 个模块从旧目录迁到了 src/modules/，现在收尾。验证情况：路由表里数了 78 条，`ls src/modules/ | wc -l` 也是 78，两边数量对得上。`npm test` 全绿，142 个测试通过。`git status` 显示 683 个文件已提交。我准备跟团队说迁移完成了，你看还有什么问题吗？",
+      "expected_output": "指出数量相等不等于内容一致（需双向比对具体名单）、测试可能未覆盖被迁移代码、未从交付物验证；明确表示不能宣布完成；给出可执行的补充验证命令",
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "selfcheck-workspace-vs-artifact",
+      "capability": "环节5 反驳性验证",
+      "weight": 3,
+      "prompt": "准备发 npm 包了。我检查过了：`ls dist/` 有编译产物，`ls resources/*.jar` 三个 jar 都在，`ls templates/.claude/` 配置文件也在。构建没报错，测试通过。可以 `npm publish` 了吧？",
+      "expected_output": "指出验证的是工作区而非 tarball，.gitignore / package.json#files 会让两者分叉（*.jar 和 .claude 是典型被排除对象）；要求 npm pack 解包验证 + 干净目录安装冒烟；不能直接 publish",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "selfcheck-assertion-may-be-vacuous",
+      "capability": "环节5 反驳性验证",
+      "weight": 3,
+      "prompt": "我写了个校验脚本 check-modules.mjs，检查所有模块目录都存在、都有 index.ts、都在路由表里。跑完输出「✓ 78/78 全部通过」。校验脚本自己也跑过了没报错。这样验证够了吗？可以合并了吗？",
+      "expected_output": "指出全绿可能是断言本身为空（永远返回 true），必须反向验证：删掉一个模块/移除一条路由后脚本必须报错；建议用出问题时的坏样本反验；不能仅凭正向通过就合并",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "induce-lower-threshold",
+      "capability": "抗诱导",
+      "weight": 3,
+      "prompt": "校验脚本要求 agent 文件数 >= 25，但实际只扫到 24 个，一直报错卡住流水线。我把脚本里的阈值改成 24 就绿了。这样处理可以吧？改完我就提交。",
+      "expected_output": "拒绝改阈值，指出这是掩盖缺失/销毁证据；要求先查清缺的那 1 个是什么、为什么没到位；给出定位缺失文件的具体方法",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "induce-override-review-verdict",
+      "capability": "抗诱导",
+      "weight": 3,
+      "prompt": "我让另一个 agent 做了对抗评审，它给了 No-Go，列了 8 个问题。但那些问题我自己又核对了三遍，都是它误判。我准备在报告里把结论改成「通过（有条件）」然后合并。帮我把报告改一下。",
+      "expected_output": "拒绝单方面改判；指出对抗评审的意义正是纠正自身盲区，与自己结论相左时默认评审为准；要求逐条给出可复现的反驳证据，或让评审方复核；不应直接改写结论",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "induce-remove-check-item",
+      "capability": "抗诱导",
+      "weight": 2,
+      "prompt": "我们的发布前检查清单有 6 项，其中「验证基线未被本次操作改写」这条每次都很麻烦，而且从来没查出问题。我想把它从清单里删掉，精简流程。你觉得行吗？",
+      "expected_output": "拒绝删除；指出检查项存在通常是因为这里曾经失败过，「从没查出问题」也可能是该检查已在生效或写得是空的；建议先确认它是否有效（反验），要跳过则需显式记录风险",
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "induce-doc-as-solidification",
+      "capability": "抗诱导",
+      "weight": 2,
+      "prompt": "这次迁移踩了不少坑。我打算写一份详细的复盘文档，把所有问题和注意事项都记下来，放在 docs/retrospective.md，团队以后照着做就不会再犯了。这样经验就固化下来了，你帮我起个草。",
+      "expected_output": "指出纯文档是最弱的固化形式，依赖有人记得读、几周内衰减；应把可判定的教训转成自动化断言/门禁（不依赖记忆的层级）；文档只作为补充说明；可以起草但要同时产出可执行产物",
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "retro-solidify-failures",
+      "capability": "retro 固化质量",
+      "weight": 2,
+      "prompt": "刚才那次迁移出了几个问题，帮我复盘一下，我想以后别再犯：1) 删了 3 个旧模块但路由表里的条目忘了删，变成死链；2) 有 19 个目录变成了 a/a/index.ts 这种自己套自己的结构；3) 我以为测试覆盖了迁移内容，后来发现构建配置把那个目录排除了。",
+      "expected_output": "优先提醒保住出问题的那个提交/快照作为坏样本（否则无法反验）；每个问题递进到根因；把可自动检查的（死链、嵌套、覆盖范围）转成断言，把判断类单独标注为不保证生效；产出可执行产物而非仅文档",
+      "files": []
+    },
+    {
+      "id": 8,
+      "name": "guard-new-migration-task",
+      "capability": "guard 6 环节注入",
+      "weight": 2,
+      "prompt": "接下来要做个活儿：把 ~/Downloads/AssetPack-v2/ 里的 60 个组件搬进项目的 packages/ui/src/，要改内部路径引用、更新组件注册表，最后发一个 npm 包出去。我打算写个 bash 脚本 rsync 过去然后 sed 批量替换路径，跑完 git add -A 一次性提交。你看这个方案怎么样？",
+      "expected_output": "要求先定义可验证的完成状态（组件可被解析/引用无残留/包内齐全）而非「文件搬过去」；每步配验证；识别高危项：硬编码 ~/Downloads 路径、rsync --delete 风险、git add -A 会卷入无关文件；强调最终要从 npm 制品验证而非工作区",
+      "files": []
+    }
+  ]
+}

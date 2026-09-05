@@ -1,0 +1,62 @@
+# 公开版本已脱敏：项目和快照标识为占位值，原始坏样本未包含在仓库中。
+id: test-coverage-target-mismatch
+slug: test-coverage-target-mismatch
+created: 2026-07-29
+updated: 2026-07-29
+status: active
+
+title: 测试通过不等于被改代码被测试
+category: verification-design
+severity: P1
+
+source:
+  project: example-project
+  task: 示例工具迁移
+  failure_date: 2026-07-28
+  known_bad_fixture:
+    ref: example/known-bad-snapshot
+    commit: REDACTED_COMMIT
+    repo: /path/to/example-project
+
+problem:
+  phenomena:
+    - 测试套件 npm test 75/75 通过
+    - 但被迁移的 example-infra/ 目录被 tsconfig.exclude 排除
+    - 测试根本没碰到迁移内容
+  root_cause: 用 proxy 指标（测试通过）代替 target 指标（被改代码被测试）
+  phase: 4
+
+solution:
+  assertion_type: coverage-target-consistency
+  strength: L2→L3
+  implementation:
+    script: check-test-coverage-target.sh
+    invocation: |
+      # 获取本次改动的文件
+      CHANGED=$(git diff --name-only HEAD~10 HEAD | grep '\.[jt]sx\?$')
+      # 检查是否被 tsconfig.exclude 排除
+      for f in $CHANGED; do
+        grep -q "$f" tsconfig.json && echo "⚠️  $f 被排除"
+      done
+      # 或检查 coverage report 是否覆盖
+      test -f coverage/coverage-final.json && \
+        jq -r 'keys[]' coverage/coverage-final.json | grep -f <(echo "$CHANGED")
+  verified_with_fixture: false
+  verification_date: null
+
+reusable:
+  pattern: 测试对象一致性
+  applies_to:
+    - 任何有测试套件的代码变更
+    - tsconfig.exclude / jest.testPathIgnorePatterns 可能排除被测代码
+    - 需要验证"测试覆盖了改动"而非"测试通过了"
+  reference: references/assertion-patterns.md
+
+evolution:
+  hits: 1
+  last_hit: 2026-07-29
+  false_positives: 0
+  false_negatives: 0
+
+related:
+  - jar-excluded-by-gitignore

@@ -1,0 +1,199 @@
+{
+  "note": "hook-track-delivery.mjs 回归用例。覆盖两个实测 bug：heredoc 正文被误记为交付物动作、验证类脚本漏判。",
+  "cases": [
+    {
+      "group": "heredoc 正文/注释里的字样不应记为交付物动作",
+      "expect": {
+        "delivery": 0
+      },
+      "cases": [
+        {
+          "name": "heredoc 正文含 npm publish（真实误报来源）",
+          "tool": "Bash",
+          "cmd": "cat > defs.mjs <<'EOF'\nmustMatch: ['先别 npm publish'],\nEOF"
+        },
+        {
+          "name": "heredoc 正文含 git commit",
+          "tool": "Bash",
+          "cmd": "cat > doc.md <<'EOF'\n提交前请确认，不要直接 git commit -m x\nEOF"
+        },
+        {
+          "name": "整行注释含 git push",
+          "tool": "Bash",
+          "cmd": "# 注意：不要 git push 到主干\necho ok"
+        }
+      ]
+    },
+    {
+      "group": "真实交付物动作必须被记录（确认修复没削弱能力）",
+      "expect": {
+        "delivery": 1
+      },
+      "cases": [
+        {
+          "name": "真 npm publish",
+          "tool": "Bash",
+          "cmd": "npm publish --access public"
+        },
+        {
+          "name": "真 git commit",
+          "tool": "Bash",
+          "cmd": "git commit -m \"feat: x\""
+        },
+        {
+          "name": "真 git push",
+          "tool": "Bash",
+          "cmd": "git push origin main"
+        },
+        {
+          "name": "heredoc 闭合后跟真 npm publish",
+          "tool": "Bash",
+          "cmd": "cat > f <<'EOF'\nharmless\nEOF\nnpm publish"
+        }
+      ]
+    },
+    {
+      "group": "验证类命令必须被识别为 selfcheck（原先全部漏判）",
+      "expect": {
+        "selfcheck": 1
+      },
+      "cases": [
+        {
+          "name": "node grade.mjs",
+          "tool": "Bash",
+          "cmd": "node grade.mjs"
+        },
+        {
+          "name": "node run-assert-self-tests.mjs",
+          "tool": "Bash",
+          "cmd": "node run-assert-self-tests.mjs"
+        },
+        {
+          "name": "node run-hook-cases.mjs",
+          "tool": "Bash",
+          "cmd": "node run-hook-cases.mjs"
+        },
+        {
+          "name": "npm test",
+          "tool": "Bash",
+          "cmd": "npm test"
+        },
+        {
+          "name": "npx vitest run",
+          "tool": "Bash",
+          "cmd": "npx vitest run tests/e2e"
+        },
+        {
+          "name": "pytest",
+          "tool": "Bash",
+          "cmd": "python3 -m pytest tests/"
+        },
+        {
+          "name": "tsc --noEmit",
+          "tool": "Bash",
+          "cmd": "npx tsc --noEmit"
+        },
+        {
+          "name": "tar 查看制品",
+          "tool": "Bash",
+          "cmd": "tar tzf pkg.tgz | head"
+        },
+        {
+          "name": "comm 查闭环",
+          "tool": "Bash",
+          "cmd": "comm -23 routed.txt actual.txt"
+        }
+      ]
+    },
+    {
+      "group": "普通命令既不算交付物也不算验证",
+      "expect": {
+        "delivery": 0,
+        "selfcheck": 0
+      },
+      "cases": [
+        {
+          "name": "ls",
+          "tool": "Bash",
+          "cmd": "ls -la src/"
+        },
+        {
+          "name": "cd",
+          "tool": "Bash",
+          "cmd": "cd /tmp && pwd"
+        },
+        {
+          "name": "git status",
+          "tool": "Bash",
+          "cmd": "git status --porcelain"
+        },
+        {
+          "name": "echo",
+          "tool": "Bash",
+          "cmd": "echo hello"
+        }
+      ]
+    },
+    {
+      "group": "验证痕迹必须是真跑，不能是提到（echo 后门回归）",
+      "expect": {
+        "selfcheck": 0
+      },
+      "cases": [
+        {
+          "name": "echo 自测完成",
+          "tool": "Bash",
+          "cmd": "echo 自测完成"
+        },
+        {
+          "name": "echo 回归通过",
+          "tool": "Bash",
+          "cmd": "echo 回归通过"
+        },
+        {
+          "name": "commit message 含 regression",
+          "tool": "Bash",
+          "cmd": "git commit -m \"fix regression in parser\""
+        },
+        {
+          "name": "grep 模式串含 self-test",
+          "tool": "Bash",
+          "cmd": "grep -rn 'self-test' docs/"
+        }
+      ]
+    },
+    {
+      "group": "真跑验证脚本必须被识别（防止上一组改过头）",
+      "expect": {
+        "selfcheck": 1
+      },
+      "cases": [
+        {
+          "name": "node run-assert-self-tests.mjs",
+          "tool": "Bash",
+          "cmd": "node run-assert-self-tests.mjs"
+        },
+        {
+          "name": "bash regression.sh",
+          "tool": "Bash",
+          "cmd": "bash regression.sh"
+        },
+        {
+          "name": "npm pack --dry-run",
+          "tool": "Bash",
+          "cmd": "npm pack --dry-run"
+        },
+        {
+          "name": "npm pack + tar",
+          "tool": "Bash",
+          "cmd": "npm pack && tar tzf pkg.tgz"
+        },
+        {
+          "name": "git archive",
+          "tool": "Bash",
+          "cmd": "git archive HEAD -o /tmp/a.tar"
+        }
+      ]
+    }
+  ]
+}

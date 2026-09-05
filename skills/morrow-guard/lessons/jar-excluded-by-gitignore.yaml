@@ -1,0 +1,58 @@
+# 公开版本已脱敏：项目和快照标识为占位值，原始坏样本未包含在仓库中。
+id: jar-excluded-by-gitignore
+slug: jar-excluded-by-gitignore
+created: 2026-07-29
+updated: 2026-07-29
+status: active
+
+title: JAR 被 .gitignore 排除导致交付物残缺
+category: artifact-mismatch
+severity: P0
+
+source:
+  project: example-project
+  task: 示例工具迁移
+  failure_date: 2026-07-28
+  known_bad_fixture:
+    ref: example/known-bad-snapshot
+    commit: REDACTED_COMMIT
+    repo: /path/to/example-project
+
+problem:
+  phenomena:
+    - 工作区里 3 个 JAR 都在（ls 能看到）
+    - git archive 制品里 0 个
+    - 用户安装后覆盖率能力直接残废
+  root_cause: 验证在工作区执行，交付物是 tarball，.gitignore 排除了 *.jar
+  phase: 4
+
+solution:
+  assertion_type: artifact-based
+  strength: L3
+  implementation:
+    script: verify-from-artifact.sh
+    invocation: |
+      bash verify-from-artifact.sh npm \
+        'tar tzf *.tgz | grep -c "\.jar$" | grep -v "^0$"'
+  verified_with_fixture: true
+  verification_date: 2026-07-29
+
+reusable:
+  pattern: 从制品验证（不测工作区）
+  applies_to:
+    - 任何有 .gitignore / package.json#files / .dockerignore 的项目
+    - npm 包发布
+    - Docker 镜像构建
+    - git archive 打包
+    - 所有"构建→打包→分发"流程
+  reference: references/assertion-patterns.md#4-从制品验证
+
+evolution:
+  hits: 1
+  last_hit: 2026-07-29
+  false_positives: 0
+  false_negatives: 0
+
+related:
+  - template-excluded-by-gitignore
+  - test-wrong-target

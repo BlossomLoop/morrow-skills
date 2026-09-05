@@ -1,0 +1,72 @@
+id: measured-at-wrong-moment
+slug: measured-at-wrong-moment
+created: 2026-07-31
+updated: 2026-07-31
+status: active
+
+title: 测量时刻错了，读到的是被清零后的状态
+category: verification-design
+severity: P1
+
+source:
+  project: morrow-guard（本 skill 自身）
+  task: 端到端验证 hook 修复
+  failure_date: 2026-07-31
+  known_bad_fixture:
+    kind: repro-procedure
+    steps:
+      - 在 Stop hook 执行「之后」读会话状态文件
+      - 观察到 delivery=0 selfcheck=0，与实际记录不符
+      - 因为放行路径会调 resetTurn() 清空计数
+    note: 无需文件 fixture，测量顺序本身就是复现步骤
+
+problem:
+  phenomena:
+    - 端到端测试读到 selfcheck=0，差点判定为「selfcheck 识别仍然失效」
+    - 实际是 Stop hook 放行时调用 resetTurn() 清空了计数
+    - 改成在 stop 之前读，数据立刻对上：selfcheck=['verify-script','verify-script']
+  root_cause: |
+    被观测对象有生命周期，观测点落在了状态被重置之后。
+    与「测工作区当制品」同形：不是没测，是测的对象/时刻不对——
+    数字看着有意义，其实无意义。
+    危险之处在于它同时能产生假阴性（如本次）和假阳性，
+    而两种情况下测试都「跑通了」。
+  phase: 4
+
+solution:
+  assertion_type: measurement-timing
+  strength: L2
+  implementation:
+    steps:
+      - 明确写出观测点相对于状态变更的位置（前/后/期间）
+      - 有清理/重置逻辑的对象，先确认清理在哪一步发生
+      - 断言值与预期不符时，先怀疑测量时刻，再怀疑被测对象
+      - 尽量在断言前后各读一次，差异本身就是证据
+    note: |
+      这条难以完全自动化——「什么时刻算对」依赖对被测系统的理解。
+      标注为 L2：倾向性约束，不保证生效。
+      可自动化的部分：为有 reset 语义的状态加读取时机注释。
+  verified_with_fixture: true
+  verification_date: 2026-07-31
+  fix_applied: |
+    端到端测试改为在 stop 前 peek 状态，三场景数据全部对上。
+
+reusable:
+  pattern: 观测点相对状态变更的位置必须明确
+  applies_to:
+    - 任何有 reset / flush / rotate / 清零语义的状态（计数器、缓冲区、会话态）
+    - 事务提交前后的数据读取
+    - 缓存失效前后的命中率统计
+    - 日志轮转期间的行数统计
+    - 测试里断言「操作后的副作用」时
+  reference: references/phase-gates.md
+
+evolution:
+  hits: 1
+  last_hit: 2026-07-31
+  false_positives: 0
+  false_negatives: 0
+
+related:
+  - verifier-without-tests
+  - test-coverage-target-mismatch

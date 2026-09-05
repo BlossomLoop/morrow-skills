@@ -1,0 +1,77 @@
+id: sibling-file-same-bug
+slug: sibling-file-same-bug
+created: 2026-07-31
+updated: 2026-07-31
+status: active
+
+title: 修一处不等于修完，姊妹文件里同 bug 还在
+category: verification-design
+severity: P1
+
+source:
+  project: morrow-guard（本 skill 自身）
+  task: 评测与 hook 修复
+  failure_date: 2026-07-31
+  known_bad_fixture:
+    kind: repro-cases
+    files:
+      - evals/track-cases.json   # "heredoc 正文含 npm publish" 三条，修复前必失败
+      - evals/assert-defs.mjs    # ALT/refuseComplete 的 mustMatch 样本
+    note: ~/.claude 非 git 仓库，fixture 为复现用例文件而非 commit
+
+problem:
+  phenomena:
+    - stripDataSections 只在 hook-danger-ops.mjs 实现，hook-track-delivery.mjs 没有；
+      写入文件的自测样本 '先别 npm publish' 被 track 当成真的 publish 命令记入 delivery，触发误报
+    - 同一根因先发作过一次：评分正则在 grade.mjs 和 assert-self-tests.mjs 各维护一份，
+      改了后者没改前者，eval-4 因此被低估 33 个百分点
+  root_cause: |
+    同一逻辑在多处复制，修复时只改了触发问题的那一处。
+    更深一层：没有「改完后回头搜同一模式还在哪」这个动作。
+    复制粘贴的代价不在写的时候，在修的时候——修 N 处的概率永远低于 1。
+  phase: 4
+
+solution:
+  assertion_type: shared-source-of-truth
+  strength: L3
+  implementation:
+    steps:
+      - 修完任一逻辑后，用 grep 搜同一模式在其他文件是否还有副本
+      - 发现副本不要复制修复，抽成共用模块让各处 import
+      - 为共用模块建回归用例，覆盖每个调用方的场景
+    commands: |
+      # 1. 找副本：搜函数名/关键正则片段
+      grep -rn 'stripDataSections\|<<-\?\\s\*' scripts/ | grep -v lib-
+
+      # 2. 确认各调用方都 import 而非内联
+      for f in scripts/hook-*.mjs; do
+        printf '%s import=%s 内联=%s\n' "$f" \
+          "$(grep -c "from './lib-strip-data.mjs'" "$f")" \
+          "$(grep -c '^function stripDataSections' "$f")"
+      done
+      # 期望：每个文件 import=1 内联=0
+  verified_with_fixture: true
+  verification_date: 2026-07-31
+  fix_applied: |
+    抽出 scripts/lib-strip-data.mjs，hook-danger-ops.mjs 与 hook-track-delivery.mjs 均 import。
+    新增 evals/run-track-cases.mjs（20 用例）覆盖 track 侧场景。
+    评分正则抽出 evals/assert-defs.mjs，grade.mjs 与 self-test 共用。
+
+reusable:
+  pattern: 单一事实来源 + 修复后搜同类
+  applies_to:
+    - 任何有姊妹文件/多入口的代码（多个 hook、多个 handler、多个 adapter）
+    - 正则/常量/校验逻辑在多处出现
+    - 修完一个 bug 后（这是最该搜的时刻）
+    - code review 时看到复制粘贴
+  reference: references/phase-gates.md
+
+evolution:
+  hits: 2
+  last_hit: 2026-07-31
+  false_positives: 0
+  false_negatives: 0
+
+related:
+  - verifier-without-tests
+  - marker-pollutes-own-detection

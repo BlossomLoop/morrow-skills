@@ -1,0 +1,73 @@
+id: marker-pollutes-own-detection
+slug: marker-pollutes-own-detection
+created: 2026-07-31
+updated: 2026-07-31
+status: active
+
+title: 修误报时开了放行漏洞——占位符污染了自己的检测
+category: tool-reliability
+severity: P0
+
+source:
+  project: morrow-guard（本 skill 自身）
+  task: 修 hook 的 heredoc 误报
+  failure_date: 2026-07-31
+  known_bad_fixture:
+    kind: repro-cases
+    files:
+      - evals/hook-cases.json
+    cases:
+      - "闭合 heredoc 后跟 rsync 删除同步"   # 修复前 exit 0（放行），应为 2
+      - "闭合 heredoc 后跟递归删除"          # 同上
+    note: 这两条用例在中间版本上必失败，是本 lesson 的反验入口
+
+problem:
+  phenomena:
+    - 为消除误报，把 heredoc 正文替换成占位符 `<<HEREDOC_BODY_STRIPPED`
+    - 该占位符本身含 `<<`，被下一条「未闭合 heredoc」规则再次识别为 heredoc 开启标记
+    - 结果把结束标记之后的真实危险命令一起剥掉 → `cat <<EOF … EOF` 后跟
+      `rsync -a --delete` 被放行
+    - 若只测「误报消失了」，这个放行漏洞会当作修复成功发布
+  root_cause: |
+    净化/标记类改写引入的记号，落在了被检测语言的语法空间内，于是被自己的检测规则命中。
+    抽象形态：sanitizer 的输出必须不属于 detector 的输入语言，否则形成自指。
+    过程上的根因：修 A 类问题（误报）时只验证 A，没验证 B 类能力（拦截）是否被削弱。
+  phase: 4
+
+solution:
+  assertion_type: reverse-verification
+  strength: L3
+  implementation:
+    steps:
+      - 占位符/哨兵值不得含被检测语法的特征串（此处：不能含 `<<`）
+      - 净化后立即回扫：确认剥离结果里不含新的开启标记
+      - 每次修误报，必须同时跑「真危险必须仍被拦」的回归组
+    commands: |
+      # 收紧误报后必跑：两组一起，缺一组等于没验
+      node evals/run-hook-cases.mjs   # 含「数据段不拦」+「真命令必拦」两组
+      # 期望全绿；只有前一组绿 = 可能开了放行漏洞
+  verified_with_fixture: true
+  verification_date: 2026-07-31
+  fix_applied: |
+    占位符改为 ` /*heredoc-stripped*/ `（不含 << ）。
+    hook-cases.json 固定包含「闭合 heredoc 后跟真危险命令」两条，防回归。
+
+reusable:
+  pattern: 净化输出不得落入检测语言 + 收紧后必验未削弱
+  applies_to:
+    - 任何 sanitizer / stripper / masker（注释剥离、字符串脱敏、模板占位）
+    - SQL/HTML/Shell 转义与注入防护
+    - 日志脱敏后的再解析
+    - 任何「为降噪而改写输入」的场景
+    - 放宽或收紧规则之后（两个方向都要回归）
+  reference: references/assertion-patterns.md
+
+evolution:
+  hits: 1
+  last_hit: 2026-07-31
+  false_positives: 0
+  false_negatives: 0
+
+related:
+  - sibling-file-same-bug
+  - proxy-metric-for-verification-trace

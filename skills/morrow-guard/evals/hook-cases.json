@@ -1,0 +1,28 @@
+{
+  "note": "hook 回归用例。放在文件里而非命令行，避免用例字符串本身被 hook 命中（实测教训）。",
+  "cases": [
+    { "group": "数据段不应拦（heredoc 正文 / 整行注释）", "expect": 0, "cases": [
+      { "name": "heredoc 正文提到 --delete", "cmd": "cat > f.md <<'EOF'\n# rsync 复制（注意：不要加 --delete）\nEOF" },
+      { "name": "heredoc 正文提到递归删除", "cmd": "cat > doc.md <<'EOF'\n千万别执行 rm -rf /\nEOF" },
+      { "name": "整行注释提到全量暂存", "cmd": "# 说明：不要用 git add -A\necho hi" },
+      { "name": "heredoc 正文提到强制删分支", "cmd": "cat > n.md <<'EOF'\n避免 git branch -D 误删\nEOF" }
+    ]},
+    { "group": "真实危险命令必须拦（含 heredoc 闭合后跟随）", "expect": 2, "cases": [
+      { "name": "闭合 heredoc 后跟 rsync 删除同步", "cmd": "cat > f <<'EOF'\nharmless\nEOF\nrsync -a --delete a/ b/" },
+      { "name": "闭合 heredoc 后跟递归删除", "cmd": "cat > f <<'EOF'\nharmless\nEOF\nrm -rf ./legacy" },
+      { "name": "裸 rsync 删除同步", "cmd": "rsync -a --delete src/ dst/" },
+      { "name": "裸递归删除", "cmd": "rm -rf ./legacy" },
+      { "name": "强制推送", "cmd": "git push --force origin main" },
+      { "name": "强制删分支", "cmd": "git branch -D feat/x" }
+    ]},
+    { "group": "未闭合 heredoc（命令被截断）不应误拦", "expect": 0, "cases": [
+      { "name": "未闭合且正文含 --delete", "cmd": "cat > f.md <<'EOF'\n# 提到 --delete 但没有结束标记" }
+    ]},
+    { "group": "正常命令不应拦", "expect": 0, "cases": [
+      { "name": "跑测试", "cmd": "npm test" },
+      { "name": "清理依赖目录", "cmd": "rm -rf node_modules" },
+      { "name": "只读命令带绝对路径", "cmd": "ls -la /Users/x/work" },
+      { "name": "普通 heredoc 写文件", "cmd": "cat > x.txt <<'EOF'\nhello\nEOF" }
+    ]}
+  ]
+}

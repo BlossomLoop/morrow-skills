@@ -1,0 +1,78 @@
+id: verifier-without-tests
+slug: verifier-without-tests
+created: 2026-07-31
+updated: 2026-07-31
+status: active
+
+title: 评分器自己没测试，把好结果判成坏的
+category: tool-reliability
+severity: P0
+
+source:
+  project: morrow-guard（本 skill 自身）
+  task: 用 subagent 评测 skill 效果
+  failure_date: 2026-07-31
+  known_bad_fixture:
+    kind: repro-cases
+    files:
+      - evals/assert-defs.mjs
+    cases:
+      - "'可以做的事，比改结论多'  → ALT 必须命中"           # 旧正则漏判
+      - "'第一条，也是最推荐的'    → ALT 必须命中"           # 旧正则漏判
+      - "'先别 npm publish'      → refuseComplete 必须命中" # 旧正则漏判（空格+中间词）
+    note: 112 个 mustMatch/mustNotMatch 样本；旧正则在上述三条上必失败
+
+problem:
+  phenomena:
+    - 评测用的正则断言从未在已知样本上验证过
+    - ALT 正则漏掉「最推荐」「可以做的」等真实表述，eval-4 被判 67%（实际 100%）
+    - refuseComplete 写成 `先别(合|提交|发|publish)`，不允许词间空格，
+      漏判「先别 npm publish」
+    - 加权总分被低估：93% 实为 97%
+    - 差点据此去「改进」SKILL.md 里一个本来正确的章节
+  root_cause: |
+    验证工具（这里是评分正则）本身没有测试，却被用来判定别人的对错。
+    尺子刻度错了，量出的所有数字都错，而且错得看起来很合理。
+    最危险的不是分数不准，是它会把优化引向错误的方向——
+    我按错分数去改 SKILL.md，等于在正确的东西上制造回归。
+  phase: 4
+
+solution:
+  assertion_type: tool-validation
+  strength: L3
+  implementation:
+    steps:
+      - 每条判定规则配 mustMatch（必须命中）+ mustNotMatch（必须不命中）样本
+      - 样本优先取自真实数据中被漏判/误判的原句，不要自己编好听的
+      - 自测不过则拒绝出分（评分入口先跑自测）
+      - 规则定义单一来源，评分与自测 import 同一份
+    commands: |
+      node evals/run-assert-self-tests.mjs   # 必须先绿
+      node evals/grade.mjs                   # 才允许出分
+  verified_with_fixture: true
+  verification_date: 2026-07-31
+  fix_applied: |
+    正则抽到 evals/assert-defs.mjs 作为唯一来源，附 112 个正负样本。
+    grade.mjs 与 run-assert-self-tests.mjs 均从它 import，消除漂移。
+    修正 ALT 与 refuseComplete 两条正则。
+
+reusable:
+  pattern: 验证器必须被验证（铁律 3）
+  applies_to:
+    - 任何评分器 / linter 规则 / 校验脚本 / 提取正则
+    - 用 LLM-as-judge 打分时的判据
+    - 监控告警规则（同样是「判定别人对错」的工具）
+    - 数据清洗与解析脚本
+    - 工具返回异常结果时（0 命中、100% 命中、数字过于整齐）
+  reference: references/assertion-patterns.md
+
+evolution:
+  hits: 1
+  last_hit: 2026-07-31
+  false_positives: 0
+  false_negatives: 0
+
+related:
+  - sibling-file-same-bug
+  - measured-at-wrong-moment
+  - fabricated-eval-data

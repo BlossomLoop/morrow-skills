@@ -1,0 +1,59 @@
+# 公开版本已脱敏：项目和快照标识为占位值，原始坏样本未包含在仓库中。
+id: routing-closure-bidirectional
+slug: routing-closure-bidirectional
+created: 2026-07-29
+updated: 2026-07-29
+status: active
+
+title: 路由表必须双向闭环检查
+category: verification-design
+severity: P0
+
+source:
+  project: example-project
+  task: 示例工具迁移
+  failure_date: 2026-07-28
+  known_bad_fixture:
+    ref: example/known-bad-snapshot
+    commit: REDACTED_COMMIT
+    repo: /path/to/example-project
+
+problem:
+  phenomena:
+    - 删除了 3 个 skill（api-testing-patterns、pc-uitest-test-runner、utp-test-plan），路由表仍有 3 个条目指向它们
+    - 新增了 19 个 skill，路由表无对应条目（孤儿文件）
+    - 路由表声称 75 条，实际扫描文件 94 个（含 19 个嵌套重复目录）
+  root_cause: 只检查"路由表里的文件是否存在"（单向），漏掉"文件是否都被路由"（反向）
+  phase: 4
+
+solution:
+  assertion_type: bidirectional-closure
+  strength: L3
+  implementation:
+    script: check-routing-closure.mjs
+    invocation: |
+      node check-routing-closure.mjs \
+        --routing-file SKILL.md \
+        --actual-dir skills/ \
+        --pattern '^- `([a-z0-9-]+)`'
+  verified_with_fixture: true
+  verification_date: 2026-07-29
+
+reusable:
+  pattern: 双向闭环（Registry ↔ Files）
+  applies_to:
+    - 任何有路由表/注册表/索引的系统
+    - agent 文件内引用的 skill ↔ 实际存在的 skill 目录
+    - package.json dependencies ↔ node_modules 实际安装
+    - tsconfig paths ↔ 实际目录结构
+  reference: references/assertion-patterns.md#1-双向闭环
+
+evolution:
+  hits: 1
+  last_hit: 2026-07-29
+  false_positives: 0
+  false_negatives: 0
+
+related:
+  - count-consistency
+  - nested-duplicate-detection
