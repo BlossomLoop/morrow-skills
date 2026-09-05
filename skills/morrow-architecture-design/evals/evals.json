@@ -1,0 +1,129 @@
+{
+  "skill_name": "morrow-architecture-design",
+  "description": "自动评测集：把 examples/*.md 作为 PRD 输入，驱动 skill 产出一整套架构设计文档与骨架，按 assertions 做机器可校验的完备性检查。手动评测入口见 evals/manual-run-template.md。",
+  "coverage_note": "当前 4 条 eval 覆盖 3 条 Greenfield 分岔（强引导 / 半自动 / 降级）+ 1 条 Brownfield 分岔。Brownfield eval 依赖运行环境中存在 mock baseline 文件（见 examples/brownfield-saas-prd.md §预设运行环境）；evaluator 需在 subagent 工作目录下先铺好 pom.xml / package.json / Dockerfile 再跑 eval，否则 Phase 0.3 探测结果会退化为 greenfield。",
+  "evals": [
+    {
+      "id": 1,
+      "name": "greenfield-minimal-guided",
+      "description": "极简内部运营后台。信息稀少，应进入强引导模式，补齐角色/场景/约束后再做架构设计。",
+      "prompt": "请使用 morrow-architecture-design 技能，基于 examples/minimal-prd.md 完成完整的架构设计流程；输出落到当前工作目录的 ai-docs/ 下，骨架落到仓库根。信息不足处进入强引导模式与用户逐项澄清。",
+      "files": ["examples/minimal-prd.md"],
+      "expected_mode": "greenfield",
+      "expected_information_completeness": "guided",
+      "assertions": [
+        { "name": "project-mode.md 存在且 mode=greenfield", "check": "file_contains", "path": "ai-docs/architecture/project-mode.md", "pattern": "mode.*greenfield" },
+        { "name": "constitution.md NON-NEGOTIABLE ≥ 3 条", "check": "file_count_matches", "path": "ai-docs/architecture/constitution.md", "pattern": "P-\\d{3}", "min": 3 },
+        { "name": "版本目录 v0.1.0 已创建（架构 + API 两侧）", "check": "files_exist", "paths": ["ai-docs/architecture/versions/v0.1.0", "ai-docs/apis/versions/v0.1.0"] },
+        { "name": "版本 delta.md 三段齐全（架构 + API）", "check": "glob_all_contain", "glob": "ai-docs/{architecture,apis}/versions/v0.1.0/delta.md", "patterns": ["## 新增", "## 修改", "## 删除"] },
+        { "name": "requirement-analysis.md 含 US/FR/SC 编号", "check": "file_contains_all", "path": "ai-docs/architecture/versions/v0.1.0/requirement-analysis.md", "patterns": ["US-\\d{3}", "FR-\\d{3}", "SC-\\d{3}"] },
+        { "name": "architecture-drivers.md 覆盖 4 类驱动项", "check": "file_contains_all", "path": "ai-docs/architecture/versions/v0.1.0/architecture-drivers.md", "patterns": ["功能", "非功能", "集成", "风险"] },
+        { "name": "solution-options.md ≥ 2 套方案 + §8 反工程化初审", "check": "file_contains_all", "path": "ai-docs/architecture/versions/v0.1.0/solution-options.md", "patterns": ["## 2. 方案 A", "## 3. 方案 B", "## 8. 反工程化审视", "最简 V0"] },
+        { "name": "solution-options.md §8.5 复审结论已回写", "check": "file_contains", "path": "ai-docs/architecture/versions/v0.1.0/solution-options.md", "pattern": "§?8\\.5.*复审" },
+        { "name": "risk-and-evolution.md 独立存在 + V/W/E 编号", "check": "file_contains_all", "path": "ai-docs/architecture/risk-and-evolution.md", "patterns": ["V-\\d{3}", "W-\\d{3}", "E-\\d{3}"] },
+        { "name": "risk-and-evolution.md §6 反工程化复审已回写", "check": "file_contains", "path": "ai-docs/architecture/risk-and-evolution.md", "pattern": "§?6.*反工程化" },
+        { "name": "基线 4 份 ADR 齐全", "check": "files_exist", "paths": [
+            "ai-docs/architecture/adr/ADR-001-system-context-and-module-splitting.md",
+            "ai-docs/architecture/adr/ADR-002-tech-stack-selection.md",
+            "ai-docs/architecture/adr/ADR-003-data-and-integration-strategy.md",
+            "ai-docs/architecture/adr/ADR-004-api-and-security-style.md"
+        ]},
+        { "name": "每份 ADR 含 关联需求 与 涉及宪法条款 字段", "check": "glob_all_contain", "glob": "ai-docs/architecture/adr/*.md", "patterns": ["关联需求", "涉及宪法条款"] },
+        { "name": "api-design.md 接口表含 服务于 FR 列", "check": "file_contains", "path": "ai-docs/apis/api-design.md", "pattern": "服务于\\s*FR" },
+        { "name": "openapi.yaml 为 3.1.0", "check": "file_contains", "path": "ai-docs/apis/openapi.yaml", "pattern": "openapi:\\s*3\\.1\\.0" },
+        { "name": "累积态物理/逻辑/领域文档含 Mermaid 图", "check": "glob_all_contain", "glob": "ai-docs/architecture/{physical,logical,domain-model}*.md", "patterns": ["```mermaid"] },
+        { "name": "版本 requirement-analysis.md 含 Mermaid 图", "check": "file_contains", "path": "ai-docs/architecture/versions/v0.1.0/requirement-analysis.md", "pattern": "```mermaid" },
+        { "name": "技术栈偏向 Java/Vue 主线（极简内部系统）", "check": "file_contains_any", "path": "ai-docs/architecture/adr/ADR-002-tech-stack-selection.md", "patterns": ["Spring Boot", "Vue"] },
+        { "name": "模块 README + docs/index.md 存在", "check": "glob_exists", "globs": ["*/README.md", "*/docs/index.md"] }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "greenfield-saas-semi-auto",
+      "description": "中型 SaaS 多租户培训平台。PRD 已含组件/角色/约束，应进入半自动模式。重点评测动态 ADR（多租户隔离 / 异步任务 / 消息通知）是否被触发。",
+      "prompt": "请使用 morrow-architecture-design 技能，基于 examples/mid-size-saas-prd.md 完成架构设计；PRD 信息较完整，进入半自动模式；关键决策点仍需显式记录。产物落到 ai-docs/。",
+      "files": ["examples/mid-size-saas-prd.md"],
+      "expected_mode": "greenfield",
+      "expected_information_completeness": "semi-auto",
+      "assertions": [
+        { "name": "project-mode.md mode=greenfield", "check": "file_contains", "path": "ai-docs/architecture/project-mode.md", "pattern": "mode.*greenfield" },
+        { "name": "constitution.md NON-NEGOTIABLE ≥ 3 条且含多租户隔离类条款", "check": "file_contains_all", "path": "ai-docs/architecture/constitution.md", "patterns": ["NON-NEGOTIABLE", "租户"] },
+        { "name": "版本目录 v0.1.0 已创建（架构 + API 两侧）", "check": "files_exist", "paths": ["ai-docs/architecture/versions/v0.1.0", "ai-docs/apis/versions/v0.1.0"] },
+        { "name": "requirement-analysis.md US ≥ 5 条", "check": "file_count_matches", "path": "ai-docs/architecture/versions/v0.1.0/requirement-analysis.md", "pattern": "US-\\d{3}", "min": 5 },
+        { "name": "候选方案至少 2 套 + 反工程化初审/复审", "check": "file_contains_all", "path": "ai-docs/architecture/versions/v0.1.0/solution-options.md", "patterns": ["方案 A", "方案 B", "反工程化", "8.5"] },
+        { "name": "ADR 基线 4 份", "check": "glob_count_min", "glob": "ai-docs/architecture/adr/ADR-00[1-4]-*.md", "min": 4 },
+        { "name": "动态 ADR 触发：多租户或异步任务或消息中间件", "check": "glob_any_name_matches", "glob": "ai-docs/architecture/adr/*.md", "patterns": ["tenant", "multi-tenant", "async", "queue", "messaging", "notification"] },
+        { "name": "risk-and-evolution.md V ≥ 3 条 + 演进触发条件可量化", "check": "file_count_matches", "path": "ai-docs/architecture/risk-and-evolution.md", "pattern": "V-\\d{3}", "min": 3 },
+        { "name": "组件识别至少含 admin/bff/worker 主干", "check": "file_contains_any", "path": "ai-docs/architecture/logical-architecture.md", "patterns": ["admin", "bff", "worker"] },
+        { "name": "api-design.md 含 服务于 FR 列", "check": "file_contains", "path": "ai-docs/apis/api-design.md", "pattern": "服务于\\s*FR" },
+        { "name": "api-contract-mapping.md 存在", "check": "file_exists", "path": "ai-docs/apis/api-contract-mapping.md" },
+        { "name": "openapi.yaml 覆盖主要资源路径", "check": "file_contains_all", "path": "ai-docs/apis/openapi.yaml", "patterns": ["openapi:\\s*3\\.1", "paths:"] }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "greenfield-unsupported-stack-fallback",
+      "description": "用户要求 Rust / Tauri，不在首版 skeleton 清单。应识别未覆盖栈，给选型建议，生成通用目录，显式标注缺少专用模板。不允许因为栈不支持就中断流程。",
+      "prompt": "请使用 morrow-architecture-design 技能，基于 examples/unsupported-stack-prd.md 完成架构设计。注意用户倾向的技术栈不在首版 skeleton 支持清单内，技能应给出选型建议并降级生成通用目录。",
+      "files": ["examples/unsupported-stack-prd.md"],
+      "expected_mode": "greenfield",
+      "expected_information_completeness": "semi-auto",
+      "assertions": [
+        { "name": "project-mode.md mode=greenfield", "check": "file_contains", "path": "ai-docs/architecture/project-mode.md", "pattern": "mode.*greenfield" },
+        { "name": "ADR-002 显式记录选择 Rust/Tauri 的理由与风险", "check": "file_contains_all", "path": "ai-docs/architecture/adr/ADR-002-tech-stack-selection.md", "patterns": ["Rust", "Tauri", "备选方案"] },
+        { "name": "ADR-002 标注 缺少专用 skeleton 类提示", "check": "file_contains_any", "path": "ai-docs/architecture/adr/ADR-002-tech-stack-selection.md", "patterns": ["缺少专用", "无专用 skeleton", "通用目录", "降级"] },
+        { "name": "risk-and-evolution.md W-xxx 含 团队学习成本 或 生态成熟度", "check": "file_contains_any", "path": "ai-docs/architecture/risk-and-evolution.md", "patterns": ["学习成本", "生态", "社区"] },
+        { "name": "骨架未使用首版支持的 skeleton（不应出现 pom.xml / build.gradle / package.json 之 Vue 版）", "check": "files_not_exist_any", "paths": ["pom.xml", "build.gradle", "vite.config.ts"] },
+        { "name": "每个新模块仍有 README.md 和 docs/index.md", "check": "glob_exists", "globs": ["*/README.md", "*/docs/index.md"] },
+        { "name": "solution-options.md 反工程化初审 + 复审均已完成", "check": "file_contains_all", "path": "ai-docs/architecture/versions/v0.1.0/solution-options.md", "patterns": ["## 8. 反工程化", "8.5"] }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "brownfield-saas-extension",
+      "description": "存量 Spring Boot + Vue 单体扩展：新增多租户能力 + 引入独立 Python/FastAPI AI 批改服务。评测 Phase 0.3 强信号探测、baseline 抽取、change_scope 标记、Phase 6 栈继承 + 异构新栈 ADR、adaptation-summary 完整性。",
+      "prompt": "请使用 morrow-architecture-design 技能，基于 examples/brownfield-saas-prd.md 完成架构设计。**运行前提**：先执行 `bash <skill_dir>/scripts/bootstrap-brownfield-mock.sh` 铺好 mock baseline 文件（pom.xml / admin-web/package.json / Dockerfile 等 8 项）。产物落到 ai-docs/；不允许重建已有目录，不允许修改 pom.xml / package.json。",
+      "files": ["examples/brownfield-saas-prd.md"],
+      "expected_mode": "brownfield",
+      "expected_information_completeness": "semi-auto",
+      "requires_mock_environment": {
+        "description": "evaluator 需在 subagent cwd 下先铺 mock baseline 文件，详见 examples/brownfield-saas-prd.md §预设运行环境",
+        "required_files": ["pom.xml", "admin-web/package.json", "Dockerfile", "docker-compose.yml", ".github/workflows/ci.yml", "README.md"]
+      },
+      "assertions": [
+        { "name": "project-mode.md mode=brownfield", "check": "file_contains", "path": "ai-docs/architecture/project-mode.md", "pattern": "mode.*brownfield" },
+        { "name": "project-mode.md 命中强信号 ≥ 3 条", "check": "file_count_matches", "path": "ai-docs/architecture/project-mode.md", "pattern": "(pom\\.xml|package\\.json|Dockerfile|docker-compose|\\.github/workflows)", "min": 3 },
+        { "name": "baseline-architecture.md 存在且 §1/§2 非空", "check": "file_contains_all", "path": "ai-docs/architecture/baseline-architecture.md", "patterns": ["## 1. 现有组件清单", "## 2. 技术栈盘点", "Spring Boot", "Vue"] },
+        { "name": "Phase 4 候选 A 是 保留现状 + 增量改造", "check": "file_contains_any", "path": "ai-docs/architecture/versions/v0.1.0/solution-options.md", "patterns": ["保留现状", "保留 +", "保留现有单体", "增量改造"] },
+        { "name": "组件表含 change_scope 列", "check": "file_contains", "path": "ai-docs/architecture/logical-architecture.md", "pattern": "change_scope" },
+        { "name": "组件表至少一个 modify 与一个 new", "check": "file_contains_all", "path": "ai-docs/architecture/logical-architecture.md", "patterns": ["modify", "new"] },
+        { "name": "Phase 6 栈继承表存在（继承 Spring Boot + Vue）", "check": "file_contains_all", "path": "ai-docs/architecture/architecture-overview.md", "patterns": ["Spring Boot", "Vue", "继承"] },
+        { "name": "异构新栈 ADR 存在（Python/FastAPI 引入）", "check": "glob_any_name_matches", "glob": "ai-docs/architecture/adr/*.md", "patterns": ["python", "fastapi", "heterogeneous", "ai-grading", "ai-scoring"] },
+        { "name": "risk-and-evolution.md W-xxx 含 现在不做统一栈 类理由", "check": "file_contains_any", "path": "ai-docs/architecture/risk-and-evolution.md", "patterns": ["统一栈", "异构", "跨栈"] },
+        { "name": "版本目录 v0.1.0 已创建（架构 + API 两侧）", "check": "files_exist", "paths": ["ai-docs/architecture/versions/v0.1.0", "ai-docs/apis/versions/v0.1.0"] },
+        { "name": "adaptation-summary.md 存在", "check": "file_exists", "path": "ai-docs/architecture/versions/v0.1.0/adaptation-summary.md" },
+        { "name": "adaptation-summary.md 含变更矩阵 + Do-Not-Touch 清单", "check": "file_contains_all", "path": "ai-docs/architecture/versions/v0.1.0/adaptation-summary.md", "patterns": ["变更矩阵", "Do-Not-Touch", "change_scope"] },
+        { "name": "adaptation-summary.md Do-Not-Touch 至少包含 pom.xml 或现有 schema", "check": "file_contains_any", "path": "ai-docs/architecture/versions/v0.1.0/adaptation-summary.md", "patterns": ["pom\\.xml", "现有数据库", "schema"] },
+        { "name": "modify 模块产出按版本号绑定的 adaptation-todo-v{x.y.z}.md（旧无版本号文件名废弃）", "check": "glob_exists", "globs": ["**/docs/adaptation-todo-v0.1.0.md"] },
+        { "name": "现有 pom.xml / admin-web/package.json 未被覆盖（hash 未变）", "check": "files_unchanged", "paths": ["pom.xml", "admin-web/package.json"] },
+        { "name": "现有 src/ 目录结构未被重建（仅在现有位置追加 docs/）", "check": "glob_exists", "globs": ["src/main/java/**", "admin-web/docs/**"] },
+        { "name": "constitution.md 登记 已知违反 或 豁免", "check": "file_contains_any", "path": "ai-docs/architecture/constitution.md", "patterns": ["已知违反", "豁免", "waiver"] }
+      ]
+    }
+  ],
+  "grading_notes": {
+    "required_all_pass": "每条 eval 的 assertions 要求全部通过才算该 eval pass；未通过的 assertion 记录具体 path + pattern，用于下一轮迭代。",
+    "known_gaps": [
+      "scripts/evaluate.py 可执行现有 check 类型；结果只代表产物结构与模式匹配，架构语义和关键决策仍需人工评审。",
+      "缺技术栈骨架内容的深度校验：当前仅断言文件存在，未校验 skeleton 模板是否正确渲染 {{project_name}} 占位符。",
+      "未覆盖 中途用户手动切换 mode 场景。",
+      "未覆盖 混合项目（老模块 + 新模块分别判定）场景。"
+    ],
+    "next_iterations": [
+      "继续增加产物语义检查，避免仅凭关键词或文件存在判断设计质量。",
+      "加一条 eval 专测 Phase 8.5 复审结论是否真的基于 Phase 8 风险做了回顾（文本相似度 / 关键词共现）。",
+      "加一条 eval 专测 constitution Re-check 阶段是否发现隐式违反。",
+      "加一条 eval 覆盖混合项目（同一仓库内老模块走 Brownfield、新模块走 Greenfield）。"
+    ]
+  }
+}

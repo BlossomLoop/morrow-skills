@@ -7,6 +7,7 @@
 | [morrow-guard](skills/morrow-guard/SKILL.md) | 编码任务的检查、失败复盘和经验记录 |
 | [morrow-style](skills/morrow-style/SKILL.md) | 中文写作、改写与个人风格检查 |
 | [morrow-style-tuner](skills/morrow-style-tuner/SKILL.md) | 更新 morrow-style 的写作规则 |
+| [morrow-architecture-design](skills/morrow-architecture-design/SKILL.md) | 架构设计、技术选型、项目骨架和存量架构演进 |
 
 ## 本地使用
 
@@ -33,6 +34,17 @@ Skill 按任务内容或显式指令调用，不会在每次对话中全部执�
 python3 -B -m unittest discover -s "skills/morrow-style/scripts" -p "test_scan_style.py" -v
 ```
 
+架构 skill 的结构检查与评分器测试：
+
+```sh
+bash "skills/morrow-architecture-design/scripts/verify.sh"
+python3 -B -m unittest discover -s "skills/morrow-architecture-design/scripts" -p "test_evaluate.py" -v
+```
+
+Claude Code / Codex 无头实测及已知问题见 [架构 skill 验证记录](reports/morrow-architecture-design-validation-2026-09-05.md)。
+
 ## 文件范围
 
-运行日志、Python 缓存和隔离区文件不纳入版本管理。历史案例中的真实项目、仓库路径和提交标识已替换为示例值；原始坏样本未包含在本仓库中。
+运行日志、Python 缓存和隔离区文件不纳入版本管理。morrow-guard 历史案例中的真实项目、仓库路径和提交标识已替换为示例值；原始坏样本未包含在本仓库中。
+
+morrow-architecture-design 的内部技术路线已替换为通用示例，历史评测资料已改为匿名问题归纳。原始项目、供应商配置、评分及私有产物路径不包含在副本中。

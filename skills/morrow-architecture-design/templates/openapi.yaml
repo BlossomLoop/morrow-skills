@@ -1,0 +1,39 @@
+openapi: 3.1.0
+info:
+  title: "{{project_name}} API"
+  version: "1.0.0"
+  description: >
+    OpenAI 风格的人类可读 API 说明应同步维护在 api-design.md，
+    本文件提供结构化 OpenAPI 契约，服务联调、Mock 和代码生成使用。
+servers:
+  - url: https://api.example.com
+    description: Production
+  - url: https://staging-api.example.com
+    description: Staging
+tags:
+  - name: system
+    description: 系统级接口
+paths:
+  /health:
+    get:
+      tags:
+        - system
+      summary: 健康检查
+      operationId: getHealth
+      responses:
+        "200":
+          description: 服务可用
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
